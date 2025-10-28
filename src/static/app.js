@@ -31,13 +31,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const spotsLeft = details.max_participants - details.participants.length;
 
-        // Construir HTML seguro para participantes
-        const participantsHtml =
-          details.participants && details.participants.length
-            ? "<ul class=\"participants-list\">" +
-              details.participants.map((p) => `<li>${escapeHtml(p)}</li>`).join("") +
-              "</ul>"
-            : '<p class="no-participants">No participants yet</p>';
+        // Participantes con ícono de eliminar
+        let participantsHtml = '';
+        if (details.participants && details.participants.length) {
+          participantsHtml = '<ul class="participants-list no-bullets">' +
+            details.participants.map((p) =>
+              `<li style="display: flex; align-items: center; gap: 6px;">
+                <span>${escapeHtml(p)}</span>
+                <span class="delete-participant" title="Remove participant" data-activity="${escapeHtml(name)}" data-email="${escapeHtml(p)}" style="cursor:pointer;color:#c62828;font-size:18px;line-height:1;">&#128465;</span>
+              </li>`
+            ).join("") +
+            '</ul>';
+        } else {
+          participantsHtml = '<p class="no-participants">No participants yet</p>';
+        }
 
         activityCard.innerHTML = `
           <h4>${escapeHtml(name)}</h4>
@@ -57,6 +64,29 @@ document.addEventListener("DOMContentLoaded", () => {
         option.value = name;
         option.textContent = name;
         activitySelect.appendChild(option);
+      });
+
+      // Delegación de eventos para eliminar participante
+      activitiesList.querySelectorAll('.delete-participant').forEach((icon) => {
+        icon.addEventListener('click', async (e) => {
+          const activity = icon.getAttribute('data-activity');
+          const email = icon.getAttribute('data-email');
+          if (!activity || !email) return;
+          if (!confirm(`Are you sure you want to remove ${email} from ${activity}?`)) return;
+          try {
+            const response = await fetch(`/activities/${encodeURIComponent(activity)}/unregister?email=${encodeURIComponent(email)}`, {
+              method: 'DELETE',
+            });
+            const result = await response.json();
+            if (response.ok) {
+              fetchActivities();
+            } else {
+              alert(result.detail || 'Error removing participant');
+            }
+          } catch (err) {
+            alert('Failed to remove participant.');
+          }
+        });
       });
     } catch (error) {
       activitiesList.innerHTML = "<p>Failed to load activities. Please try again later.</p>";
@@ -85,6 +115,7 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
+        fetchActivities(); // Actualizar lista tras registro
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
